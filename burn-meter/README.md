@@ -4,7 +4,7 @@ Live session cost odometer above the prompt: a burning fuse, threshold alerts, a
 
 ![burn-meter](../screenshots/burn-meter.png)
 
-A three-row band above the prompt. The first row carries the status line's figures: model, folder, git branch and lines changed. The second meters the context window, then the session's spend with a sparkline of recent turns, tokens in and out, and session time. The third meters the 5-hour plan limit with its reset, the weekly one, and your lifetime spend. `/burn` opens the full panel with a big fire bar, the same figures, the output style and per-turn cost. Alerts fire when you cross a threshold. Every label is in Chinese.
+A three-row band above the prompt. The first row carries the status line's figures: model, folder, git branch and lines changed. The second meters the context window, then the session's spend with a sparkline of the last five hours' spend across every session, one cell an hour, tokens in and out, and session time. The third meters the 5-hour plan limit with its reset, the weekly one, and your lifetime spend. `/burn` opens the full panel with a big fire bar, the same figures, the output style and per-turn cost. Alerts fire when you cross a threshold. Every label is in Chinese.
 
 (The screenshot shows the original English version.)
 
@@ -21,7 +21,9 @@ Everything burn-meter shows comes from the session's own numbers, which Claude C
 
 It runs one command, `git --no-optional-locks status --porcelain=v2 --branch`, in the session's folder: at session start, after each turn, and every 30 seconds. It is read-only and takes no locks. It reads the `outputStyle` setting to name the output style.
 
-It stores two small values with Claude Code's own plugin storage: your running lifetime spend, and the last cost reading for the current session so a restart does not count the same spend twice.
+It stores three small values with Claude Code's own plugin storage: your running lifetime spend, the last cost reading for each session so a restart does not count the same spend twice, and spend by hour for the last five hours.
+
+Its colors are theme keys (`claude`, `success`, `warning`, `error`, `text`), so they follow whatever theme you run.
 
 ## Install
 

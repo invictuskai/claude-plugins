@@ -2,7 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Burn, ModelTally, Status } from '../types'
-import { barText, blocks, clockTime, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, resetsShort, spark, styleName, tallyTurn, tokenCount, tokenTotals, tokensShort, tween, windows } from './burn'
+import type { Hourly } from './burn'
+import { addToHour, barText, blocks, clockTime, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lastHours, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, resetsShort, HOURS, spark, styleName, tallyTurn, tokenCount, tokenTotals, tokensShort, tween, windows } from './burn'
 
 const burn = atom({ plugin: 'burn-meter', key: 'burn' } as const, {
   shown: 0,
@@ -26,13 +27,14 @@ const status = atom({ plugin: 'burn-meter', key: 'status' } as const, {
   added: 0,
   removed: 0,
 } as Status)
+const hourly = atom({ plugin: 'burn-meter', key: 'hourly' } as const, [] as number[])
 
-const GOLD = '#E6B450'
-const PAPER = '#BFBDB6'
-const RED = '#F07178'
-const ORANGE = '#FF8F40'
-const GREEN = '#AAD94C'
-const BLUE = '#59C2FF'
+// Theme keys, so every color follows the person's theme (Ayu Dark here) as Claude Code's own text does.
+const ACCENT = 'claude'
+const TEXT = 'text'
+const BAD = 'error'
+const WARN = 'warning'
+const GOOD = 'success'
 
 const DEMO_MS = 20_000
 const DEMO_TOP = 30.5
@@ -92,10 +94,18 @@ const readCost = async ($: EngineInterface) => {
   const delta = lifetimeDelta(last, sessionId, usd)
   const stored = Number((await $.store.get('lifetime')) ?? 0)
   const lifetime = stored + delta
+  // Every session adds its new spend to the shared hours, so the sparkline counts them all.
+  let hours = ((await $.store.get('hours')) ?? {}) as Hourly
   if (delta !== 0 || !last || last.sessionId !== sessionId) {
     await $.store.set('lifetime', lifetime)
     await $.store.set(lastKey, { sessionId, usd })
+    if (delta > 0) {
+      hours = addToHour(hours, delta, Date.now())
+      await $.store.set('hours', hours)
+    }
   }
+  const recent = lastHours(hours, Date.now())
+  if ((await read($, hourly)).join() !== recent.join()) await update($, hourly, () => recent)
   const now = await read($, burn)
   if (
     now.session !== sub.session ||
@@ -193,7 +203,10 @@ const readInfo = async ($: EngineInterface) => {
 
 type Info = Awaited<ReturnType<typeof readInfo>>
 
-const contextColor = (info: Info) => (info.contextPct > 80 ? RED : info.contextPct > 50 ? ORANGE : undefined)
+const contextColor = (info: Info) => (info.contextPct > 80 ? BAD : info.contextPct > 50 ? WARN : ACCENT)
+
+/** A plan limit by how much is used: green, then amber past half, red past three quarters. */
+const limitColor = (percent: number) => (percent > 75 ? BAD : percent > 50 ? WARN : GOOD)
 
 const runDemo = async ($: EngineInterface) => {
   demoStartedAt = await $.clock.now()
@@ -306,12 +319,12 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
-    const [b, info, history, used] = await Promise.all([read($, burn), readInfo($), read($, turns), read($, models)])
+    const [b, info, hours, used] = await Promise.all([read($, burn), readInfo($), read($, hourly), read($, models)])
 
     const { Box, Text } = $.ui.resolve(e)
     const now = Date.now()
     const level = fill(b)
-    const color = level > 0.75 ? RED : level > 0.45 ? ORANGE : GOLD
+    const color = level > 0.75 ? BAD : level > 0.45 ? WARN : ACCENT
     const isRolling = b.shown !== b.target
     const tokens = tokenTotals(used)
     const hasContext = info.contextTokens !== undefined
@@ -333,47 +346,58 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" paddingLeft={1}>
         <Text>
-          <Text color={BLUE} bold>{info.model}</Text>
+          <Text color={ACCENT} bold>{info.model}</Text>
           <Text dimColor>{'  ·  '}</Text>
-          <Text>{info.folder}</Text>
+          <Text color={TEXT} bold>{info.folder}</Text>
           {info.git ? <Text dimColor>{'  ·  '}</Text> : null}
-          {info.git ? <Text color={info.dirty > 0 ? ORANGE : GREEN}>{info.git}</Text> : null}
-          <Text color={GREEN}>{` +${info.added}`}</Text>
-          <Text color={RED}>{` −${info.removed}`}</Text>
+          {info.git ? <Text color={info.dirty > 0 ? WARN : GOOD}>{info.git}</Text> : null}
+          <Text color={GOOD}>{` +${info.added}`}</Text>
+          <Text color={BAD}>{` −${info.removed}`}</Text>
         </Text>
         <Box>
           {cell('label', 7, <Text dimColor>上下文</Text>)}
-          {cell('bar', 12, <Text color={contextColor(info) ?? GOLD}>{blocks(info.contextPct / 100)}</Text>)}
+          {cell('bar', 12, <Text color={contextColor(info)}>{blocks(info.contextPct / 100)}</Text>)}
           {cell(
             'figure',
             14,
             <Text>
-              <Text>{hasContext ? `${info.contextPct.toFixed(1)}%` : '--'}</Text>
-              <Text dimColor>{`  ${contextSize}`}</Text>
+              <Text color={contextColor(info)} bold>{hasContext ? `${info.contextPct.toFixed(1)}%` : '--'}</Text>
+              <Text color={TEXT}>{`  ${contextSize}`}</Text>
             </Text>,
           )}
           {cell(
             'spend',
             18,
             <Text>
-              <Text color={isRolling ? color : PAPER} bold>{`${b.isDemo ? '演示 ' : ''}${money(b.shown)}`}</Text>
-              <Text color={GOLD}>{` ${spark(history)}`}</Text>
+              {/* Spend is the band's headline: amber at rest, the heat's color while it climbs. */}
+              <Text color={isRolling ? color : WARN} bold>{`${b.isDemo ? '演示 ' : ''}${money(b.shown)}`}</Text>
+              <Text color={WARN}>{` ${spark(hours, HOURS)}`}</Text>
             </Text>,
           )}
-          {right('tokens', <Text dimColor>{`↑${tokenCount(tokens.input)} ↓${tokenCount(tokens.output)}   ⏱ ${info.clock}`}</Text>)}
+          {right(
+            'tokens',
+            <Text>
+              <Text color={ACCENT}>↑</Text>
+              <Text color={TEXT}>{`${tokenCount(tokens.input)} `}</Text>
+              <Text color={GOOD}>↓</Text>
+              <Text color={TEXT}>{`${tokenCount(tokens.output)}   `}</Text>
+              <Text dimColor>{'⏱ '}</Text>
+              <Text color={TEXT}>{info.clock}</Text>
+            </Text>,
+          )}
         </Box>
         <Box>
           {cell('label', 7, <Text dimColor>5小时</Text>)}
           {cell(
             'bar',
             12,
-            b.session < 0 ? <Text dimColor>{blocks(0)}</Text> : <Text color={b.session > 75 ? RED : GOLD}>{blocks(b.session / 100)}</Text>,
+            b.session < 0 ? <Text dimColor>{blocks(0)}</Text> : <Text color={limitColor(b.session)}>{blocks(b.session / 100)}</Text>,
           )}
           {cell(
             'figure',
             14,
             <Text>
-              <Text>{pct(b.session)}</Text>
+              {b.session < 0 ? <Text dimColor>--</Text> : <Text color={limitColor(b.session)} bold>{pct(b.session)}</Text>}
               <Text dimColor>{sessionReset ? `   ↻ ${sessionReset}` : ' '}</Text>
             </Text>,
           )}
@@ -382,11 +406,17 @@ export const register: Register = on => {
             18,
             <Text>
               <Text dimColor>{'本周 '}</Text>
-              <Text color={b.week > 75 ? RED : undefined}>{pct(b.week)}</Text>
+              {b.week < 0 ? <Text dimColor>--</Text> : <Text color={limitColor(b.week)} bold>{pct(b.week)}</Text>}
               <Text dimColor>{weekReset ? `  ↻ ${weekReset}` : ' '}</Text>
             </Text>,
           )}
-          {right('lifetime', <Text dimColor>{`累计 ${money(b.lifetime)}`}</Text>)}
+          {right(
+            'lifetime',
+            <Text>
+              <Text dimColor>{'累计 '}</Text>
+              <Text color={TEXT} bold>{money(b.lifetime)}</Text>
+            </Text>,
+          )}
         </Box>
       </Box>
     )
@@ -404,7 +434,7 @@ export const register: Register = on => {
     const cols = Math.max(40, e.props.bodyColumns || e.viewport?.columns || 80)
     const width = cols - 2
     const level = fill(b)
-    const color = level > 0.75 ? RED : level > 0.45 ? ORANGE : GOLD
+    const color = level > 0.75 ? BAD : level > 0.45 ? WARN : ACCENT
     const isRolling = b.shown !== b.target
     const meter = Math.max(10, Math.min(40, width - 30))
     const windowBar = (n: number) => (n < 0 ? '' : barText(meter, Math.max(0, Math.min(1, n / 100))))
@@ -428,7 +458,7 @@ export const register: Register = on => {
           <Text color={color} bold>{b.isDemo ? '演示' : '本次会话花费'}</Text>
           <Text dimColor>{`累计 ${money(b.lifetime)}`}</Text>
         </Box>
-        <Text color={isRolling ? color : PAPER} bold>{money(b.shown)}</Text>
+        <Text color={isRolling ? color : TEXT} bold>{money(b.shown)}</Text>
         <Box marginY={1}>
           {hasFire ? (
             <Raster key="bigfire" columns={width} rows={PANE_FIRE_ROWS} cells={fireCells(width, level, level, now / 1000, PANE_FIRE_ROWS)} />
@@ -438,14 +468,14 @@ export const register: Register = on => {
         </Box>
 
         <Box flexDirection="column" marginBottom={1}>
-          <Text bold color={PAPER}>会话</Text>
-          {row('model', '模型', <Text color={BLUE} bold>{info.model}</Text>)}
+          <Text bold color={TEXT}>会话</Text>
+          {row('model', '模型', <Text color={ACCENT} bold>{info.model}</Text>)}
           {row('folder', '目录', <Text>{info.folder}</Text>)}
           {info.git &&
             row(
               'git',
               '分支',
-              <Text color={info.dirty > 0 ? ORANGE : GREEN}>
+              <Text color={info.dirty > 0 ? WARN : GOOD}>
                 {info.dirty > 0 ? `${info.git}  ${info.dirty} 个文件有改动` : `${info.git}  没有改动`}
               </Text>,
             )}
@@ -453,7 +483,7 @@ export const register: Register = on => {
             'context',
             '上下文',
             <Text>
-              <Text color={contextColor(info) ?? GOLD}>{barText(meter, Math.max(0, Math.min(1, info.contextPct / 100)))}</Text>
+              <Text color={contextColor(info)}>{barText(meter, Math.max(0, Math.min(1, info.contextPct / 100)))}</Text>
               <Text>{` ${info.context}`}</Text>
             </Text>,
           )}
@@ -462,9 +492,9 @@ export const register: Register = on => {
             'lines',
             '代码行',
             <Text>
-              <Text color={GREEN}>{`+${info.added}`}</Text>
+              <Text color={GOOD}>{`+${info.added}`}</Text>
               <Text>{' '}</Text>
-              <Text color={RED}>{`-${info.removed}`}</Text>
+              <Text color={BAD}>{`-${info.removed}`}</Text>
             </Text>,
           )}
           {row('style', '输出风格', <Text>{info.style}</Text>)}
@@ -472,13 +502,13 @@ export const register: Register = on => {
 
         {(b.session >= 0 || b.week >= 0) && (
           <Box flexDirection="column" marginBottom={1}>
-            <Text bold color={PAPER}>额度</Text>
+            <Text bold color={TEXT}>额度</Text>
             {b.session >= 0 &&
               row(
                 'five-hour',
                 '5 小时',
                 <Text>
-                  <Text color={b.session > 75 ? RED : GOLD}>{windowBar(b.session)}</Text>
+                  <Text color={limitColor(b.session)}>{windowBar(b.session)}</Text>
                   <Text>{` ${pct(b.session)} `}</Text>
                   <Text dimColor>{resetsIn(b.sessionResets, Date.now())}</Text>
                 </Text>,
@@ -488,7 +518,7 @@ export const register: Register = on => {
                 'week',
                 '每周',
                 <Text>
-                  <Text color={b.week > 75 ? RED : GOLD}>{windowBar(b.week)}</Text>
+                  <Text color={limitColor(b.week)}>{windowBar(b.week)}</Text>
                   <Text>{` ${pct(b.week)} `}</Text>
                   <Text dimColor>{resetsIn(b.weekResets, Date.now())}</Text>
                 </Text>,
@@ -497,12 +527,12 @@ export const register: Register = on => {
         )}
 
         <Box flexDirection="column">
-          <Text bold color={PAPER}>每轮花费</Text>
+          <Text bold color={TEXT}>每轮花费</Text>
           {history.length === 0 && <Text dimColor>还没有完成的回合。</Text>}
           {history.map((usd, i) => (
             <Text key={`turn-${i}`}>
               <Text dimColor>{`#${String(i + 1).padStart(2, ' ')}  `}</Text>
-              <Text color={usd === top && history.length > 1 ? ORANGE : GOLD}>{barText(turnBar, usd / top)}</Text>
+              <Text color={usd === top && history.length > 1 ? WARN : ACCENT}>{barText(turnBar, usd / top)}</Text>
               <Text>{` ${money(usd)}`}</Text>
             </Text>
           ))}

@@ -31,6 +31,6 @@ export type Status = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'burn-meter': { burn: Burn; isHidden: boolean; fired: number[]; turns: number[]; turnStart: number; models: Record<string, ModelTally>; status: Status }
+    'burn-meter': { burn: Burn; isHidden: boolean; fired: number[]; turns: number[]; turnStart: number; models: Record<string, ModelTally>; status: Status; hourly: number[] }
   }
 }

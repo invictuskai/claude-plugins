@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { FIRE_ROWS, barText, blocks, bracket, burnt, clockTime, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, resetsShort, spark, styleName, tallyTurn, tokenCount, tokenTotals, tokensShort, tween, windows } from '../hooks/burn'
+import { FIRE_ROWS, HOURS, addToHour, barText, blocks, bracket, burnt, clockTime, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lastHours, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, resetsShort, spark, styleName, tallyTurn, tokenCount, tokenTotals, tokensShort, tween, windows } from '../hooks/burn'
 
 describe('burn math', () => {
   test('money formats cents and fractions of a cent', async () => {
@@ -149,5 +149,22 @@ describe('burn math', () => {
     const m = { a: { input: 1_000_000, output: 80_000, turns: 3 }, b: { input: 200_000, output: 4_000, turns: 1 } }
     expect(tokenTotals(m)).toEqual({ input: 1_200_000, output: 84_000 })
     expect(tokenCount(86_400)).toBe('86k')
+  })
+
+  test('spend lands in hourly buckets that cover the 5-hour window', async () => {
+    const t = Date.parse('2026-10-12T10:30:00Z')
+    const hour = 3_600_000
+    let h = addToHour({}, 0.04, t - 4 * hour)
+    h = addToHour(h, 0.3, t - 3 * hour)
+    h = addToHour(h, 0.45, t - hour)
+    h = addToHour(h, 0.5, t)
+    h = addToHour(h, 0.12, t + 60_000)
+    expect(lastHours(h, t)).toEqual([0.04, 0.3, 0, 0.45, 0.62])
+    expect(spark(lastHours(h, t), HOURS)).toBe('▂▄▁▆█')
+    // An hour later the oldest bucket falls out of the window, and out of the store.
+    const later = addToHour(h, 0.1, t + hour)
+    expect(lastHours(later, t + hour)).toEqual([0.3, 0, 0.45, 0.62, 0.1])
+    expect(Object.keys(later).length).toBe(4)
+    expect(lastHours({}, t)).toEqual([0, 0, 0, 0, 0])
   })
 })

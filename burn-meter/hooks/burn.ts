@@ -96,11 +96,36 @@ export const blocks = (fraction: number, width = 10) => {
 
 const SPARKS = '▁▂▃▄▅▆▇█'
 
-/** The last `width` values as `▁▂▃▅▇`, scaled to the largest; '' with none. */
+/**
+ * The last `width` values as `▁▂▃▅▇`, scaled to the largest; '' with none.
+ * `▁` is kept for nothing at all, so the smallest spend still shows as `▂`.
+ */
 export const spark = (values: readonly number[], width = 8) => {
   const recent = values.slice(-width)
   const top = Math.max(0, ...recent)
-  return recent.map(v => SPARKS[top <= 0 ? 0 : Math.round((Math.max(0, v) / top) * (SPARKS.length - 1))]).join('')
+  const level = (v: number) => (v <= 0 || top <= 0 ? 0 : Math.max(1, Math.round((v / top) * (SPARKS.length - 1))))
+  return recent.map(v => SPARKS[level(v)]).join('')
+}
+
+/** How many hours the band's sparkline covers, one cell an hour: the plan's 5-hour window. */
+export const HOURS = 5
+
+const HOUR_MS = 3_600_000
+
+/** Spend by hour since the epoch, kept across sessions: `{ "493512": 0.62 }`. */
+export type Hourly = Readonly<Record<string, number>>
+
+/** Adds `usd` to the hour `now` falls in, dropping hours older than the window. */
+export const addToHour = (hours: Hourly, usd: number, now: number): Hourly => {
+  const hour = Math.floor(now / HOUR_MS)
+  const kept = Object.fromEntries(Object.entries(hours).filter(([h]) => Number(h) > hour - HOURS))
+  return { ...kept, [hour]: (kept[hour] ?? 0) + usd }
+}
+
+/** The last HOURS hours' spend, oldest first and the current hour last; 0 for an hour with none. */
+export const lastHours = (hours: Hourly, now: number) => {
+  const hour = Math.floor(now / HOUR_MS)
+  return Array.from({ length: HOURS }, (_, i) => hours[hour - HOURS + 1 + i] ?? 0)
 }
 
 /** Input and output tokens summed over every model the session used. */
