@@ -11,7 +11,7 @@ Claude Code 配色主题。加载后出现在 `/theme` 选择器中，ID 为 `cu
 ## 安装
 
 ```
-/plugin marketplace add <github-user>/claude-plugins
+/plugin marketplace add invictuskai/claude-plugins
 /plugin install oceanus-themes@oceanus-plugins
 ```
 

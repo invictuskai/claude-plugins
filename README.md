@@ -14,7 +14,7 @@
 通过插件市场（推送到 GitHub 之后）：
 
 ```
-/plugin marketplace add <github-user>/claude-plugins
+/plugin marketplace add invictuskai/claude-plugins
 /plugin install burn-meter@oceanus-plugins
 ```
 

@@ -23,7 +23,7 @@ It stores two small values with Claude Code's own plugin storage: your running l
 In a Claude Code session (2.1.287 or later):
 
 ```
-/plugin marketplace add <github-user>/claude-plugins
+/plugin marketplace add invictuskai/claude-plugins
 /plugin install burn-meter@oceanus-plugins
 ```
 
