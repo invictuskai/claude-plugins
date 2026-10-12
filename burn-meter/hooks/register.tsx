@@ -405,8 +405,8 @@ export const register: Register = on => {
             'week',
             18,
             <Text>
-              <Text dimColor>{'本周 '}</Text>
-              {b.week < 0 ? <Text dimColor>--</Text> : <Text color={limitColor(b.week)} bold>{pct(b.week)}</Text>}
+              {/* One token in one color, so the label and its figure read as a pair. */}
+              {b.week < 0 ? <Text dimColor>本周--</Text> : <Text color={limitColor(b.week)} bold>{`本周-${pct(b.week)}`}</Text>}
               <Text dimColor>{weekReset ? `  ↻ ${weekReset}` : ' '}</Text>
             </Text>,
           )}

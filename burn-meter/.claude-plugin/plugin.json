@@ -1,6 +1,6 @@
 {
   "name": "burn-meter",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Live session cost odometer above the prompt: a burning fuse, plan limits, threshold alerts and the status line's figures",
   "types": "./types/index.d.ts",
   "license": "MIT",
