@@ -4,7 +4,7 @@
 
 | 插件 | 命令 | 说明 |
 | --- | --- | --- |
-| [burn-meter](burn-meter/) | `/burn` | 输入框上方的会话花费仪表：火焰进度条、5 小时/每周额度、超额提醒。配色改为 Ayu Dark |
+| [burn-meter](burn-meter/) | `/burn` | 输入框上方的会话仪表：状态栏信息（模型、目录、分支、上下文、用时、增删行数、输出风格）、火焰花费条、5 小时/每周额度、超额提醒。中文界面，Ayu Dark 配色 |
 | [oceanus-themes](oceanus-themes/) | `/theme` | 配色主题：Ayu Dark（来自 ccthemes），ID `custom:oceanus-themes:ayu-dark` |
 
 ## 安装

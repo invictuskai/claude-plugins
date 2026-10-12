@@ -2,23 +2,24 @@
 
 export const THRESHOLDS = [1, 5, 10, 25, 50] as const
 
-type Thing = { one: string; many: string; usd: number }
+/** A thing to price the spend in: its measure word and name, so `1.4 个墨西哥卷饼`. */
+type Thing = { name: string; usd: number }
 
 export const THINGS: readonly Thing[] = [
-  { one: 'burrito', many: 'burritos', usd: 11 },
-  { one: 'McDouble', many: 'McDoubles', usd: 3.19 },
+  { name: '个墨西哥卷饼', usd: 11 },
+  { name: '个麦当劳汉堡', usd: 3.19 },
 ]
 
 /** Dollars with two decimals (12.34), or four under a cent so the first fractions still move. */
 export const money = (usd: number) =>
   '$' + (usd > 0 && usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2))
 
-/** `= 1.4 burritos` for the thing at `index`, wrapping. */
+/** `≈ 1.4 个墨西哥卷饼` for the thing at `index`, wrapping. */
 export const compare = (usd: number, index: number) => {
   const thing = THINGS[((index % THINGS.length) + THINGS.length) % THINGS.length]!
   const count = usd / thing.usd
   const shown = count >= 10 ? count.toFixed(0) : count >= 1 ? count.toFixed(1) : count.toFixed(2)
-  return `= ${shown} ${shown === '1.0' || shown === '1' ? thing.one : thing.many}`
+  return `≈ ${shown} ${thing.name}`
 }
 
 /** `842`, `84k`, `1.2M`. */
@@ -41,18 +42,18 @@ export const tallyTurn = (models: Readonly<Record<string, Tally>>, u: Usage) => 
   return { ...models, [u.model]: { input: was.input + input, output: was.output + u.output_tokens, turns: was.turns + 1 } }
 }
 
-/** `claude-opus-5-5` -> `opus 5.5`, `claude-haiku-4-5-20251001` -> `haiku 4.5`. */
+/** `claude-opus-5-5` -> `Opus 5.5`, `claude-haiku-4-5-20251001` -> `Haiku 4.5`. */
 export const modelName = (id: string) => {
   const m = /claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?/.exec(id)
-  return m ? `${m[1]} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id
+  return m ? `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id
 }
 
-/** `opus 5.5 1.2M in 84k out · haiku 4.5 ...`, busiest first; '' when none. */
+/** `Opus 5.5 输入 1.2M 输出 84k · Haiku 4.5 ...`, busiest first; '' when none. */
 export const modelsLine = (models: Readonly<Record<string, Tally>>, max = 3) =>
   Object.entries(models)
     .sort((a, b) => b[1].output - a[1].output)
     .slice(0, max)
-    .map(([id, t]) => `${modelName(id)} ${tokenCount(t.input)} in ${tokenCount(t.output)} out`)
+    .map(([id, t]) => `${modelName(id)} 输入 ${tokenCount(t.input)} 输出 ${tokenCount(t.output)}`)
     .join(' · ')
 
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
@@ -70,20 +71,80 @@ export const windows = (limits: readonly Limit[]) => {
   }
 }
 
-/** `in 2h 14m`, `in 3d 4h`, `now`; '' when unknown. */
+/** `2小时14分后重置`, `3天4小时后重置`, `即将重置`; '' when unknown. */
 export const resetsIn = (iso: string, now: number) => {
   if (!iso) return ''
   const ms = Date.parse(iso) - now
   if (!Number.isFinite(ms)) return ''
-  if (ms <= 0) return 'now'
+  if (ms <= 0) return '即将重置'
   const m = Math.floor(ms / 60_000)
   const d = Math.floor(m / 1440)
   const h = Math.floor((m % 1440) / 60)
-  return d > 0 ? `in ${d}d ${h}h` : h > 0 ? `in ${h}h ${m % 60}m` : `in ${m}m`
+  return d > 0 ? `${d}天${h}小时后重置` : h > 0 ? `${h}小时${m % 60}分后重置` : `${m}分钟后重置`
 }
 
 /** `42%`, or `--` with no reading. */
 export const pct = (n: number) => (n < 0 ? '--' : `${Math.round(n)}%`)
+
+// --- the status line's figures -------------------------------------------
+
+/** `842`, `86.4k`, `1M`: one decimal, a trailing `.0` dropped. */
+export const tokensShort = (n: number) => {
+  const one = (x: number) => x.toFixed(1).replace(/\.0$/, '')
+  return n < 1000 ? `${Math.round(n)}` : n < 1e6 ? `${one(n / 1e3)}k` : `${one(n / 1e6)}M`
+}
+
+/** `8.6% · 86.4k / 1M`, or `-- / 1M` before the first response. */
+export const contextLine = (tokens: number | undefined, window: number) =>
+  tokens === undefined || window <= 0
+    ? `-- / ${tokensShort(window)}`
+    : `${((tokens / window) * 100).toFixed(1)}% · ${tokensShort(tokens)} / ${tokensShort(window)}`
+
+/** `19分32秒` under an hour, `1小时5分` past it. */
+export const elapsed = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  return h > 0 ? `${h}小时${m}分` : `${m}分${s % 60}秒`
+}
+
+/** The last segment of a path, either separator. */
+export const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path
+
+/** The branch and how many paths changed, out of `git status --porcelain=v2 --branch`. */
+export const parseGitStatus = (out: string) => {
+  let branch = ''
+  let dirty = 0
+  for (const line of out.split('\n')) {
+    if (line.startsWith('# branch.head ')) branch = line.slice('# branch.head '.length).trim()
+    else if (line.trim() && !line.startsWith('#')) dirty++
+  }
+  return { branch: branch === '(detached)' ? '游离 HEAD' : branch, dirty }
+}
+
+/** `main ✓` when clean, `main ●3` with three changed paths; '' outside a repository. */
+export const gitLabel = (branch: string, dirty: number) =>
+  !branch ? '' : dirty > 0 ? `${branch} ●${dirty}` : `${branch} ✓`
+
+/** Lines added and removed in a tool's structured patch. */
+export const patchLines = (patch: readonly { lines: readonly string[] }[]) => {
+  let added = 0
+  let removed = 0
+  for (const hunk of patch) {
+    for (const line of hunk.lines) {
+      if (line.startsWith('+')) added++
+      else if (line.startsWith('-')) removed++
+    }
+  }
+  return { added, removed }
+}
+
+/** Lines in a new file's content: a trailing newline does not start another. */
+export const lineCount = (text: string) => (text ? text.replace(/\n$/, '').split('\n').length : 0)
+
+/** The `outputStyle` setting by name, `默认` when unset or `default`. */
+export const styleName = (setting: unknown) =>
+  typeof setting === 'string' && setting && setting.toLowerCase() !== 'default' ? setting : '默认'
 
 /** Thresholds crossed going from `from` to `to` that are not in `fired`. */
 export const crossed = (from: number, to: number, fired: readonly number[]) =>

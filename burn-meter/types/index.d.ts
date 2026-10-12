@@ -16,8 +16,21 @@ export type Burn = {
 /** One model's tokens this session: input counts cached reads and writes too. */
 export type ModelTally = { input: number; output: number; turns: number }
 
+/** The status line's figures the session API does not answer directly. */
+export type Status = {
+  /** The branch `git status` reports, or '' outside a repository. */
+  branch: string
+  /** Paths changed, staged or not, untracked included. */
+  dirty: number
+  /** The output style, as `styleName` names it. */
+  style: string
+  /** Lines Edit and Write added and removed this session. */
+  added: number
+  removed: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
-    'burn-meter': { burn: Burn; isHidden: boolean; fired: number[]; turns: number[]; turnStart: number; models: Record<string, ModelTally> }
+    'burn-meter': { burn: Burn; isHidden: boolean; fired: number[]; turns: number[]; turnStart: number; models: Record<string, ModelTally>; status: Status }
   }
 }

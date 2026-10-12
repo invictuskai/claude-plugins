@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { FIRE_ROWS, barText, bracket, burnt, compare, crossed, fireCells, heat, lifetimeDelta, modelName, modelsLine, money, pct, resetsIn, tallyTurn, tokenCount, tween, windows } from '../hooks/burn'
+import { FIRE_ROWS, barText, bracket, burnt, compare, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tokenCount, tokensShort, tween, windows } from '../hooks/burn'
 
 describe('burn math', () => {
   test('money formats cents and fractions of a cent', async () => {
@@ -9,12 +9,11 @@ describe('burn math', () => {
     expect(money(0.0042)).toBe('$0.0042')
   })
 
-  test('comparisons pick a thing and pluralize', async () => {
-    expect(compare(22, 0)).toBe('= 2.0 burritos')
-    expect(compare(11, 0)).toBe('= 1.0 burrito')
-    expect(compare(3.19, 1)).toBe('= 1.0 McDouble')
-    expect(compare(31.9, 1)).toBe('= 10 McDoubles')
-    expect(compare(11, 2)).toBe('= 1.0 burrito')
+  test('comparisons pick a thing and count it in Chinese', async () => {
+    expect(compare(22, 0)).toBe('≈ 2.0 个墨西哥卷饼')
+    expect(compare(3.19, 1)).toBe('≈ 1.0 个麦当劳汉堡')
+    expect(compare(31.9, 1)).toBe('≈ 10 个麦当劳汉堡')
+    expect(compare(11, 2)).toBe('≈ 1.0 个墨西哥卷饼')
   })
 
   test('thresholds fire once each, in order', async () => {
@@ -70,8 +69,10 @@ describe('burn math', () => {
     expect(pct(-1)).toBe('--')
     expect(pct(23.5)).toBe('24%')
     const now = Date.parse('2026-10-02T17:46:00Z')
-    expect(resetsIn('2026-10-02T20:00:00Z', now)).toBe('in 2h 14m')
-    expect(resetsIn('2026-10-05T21:46:00Z', now)).toBe('in 3d 4h')
+    expect(resetsIn('2026-10-02T20:00:00Z', now)).toBe('2小时14分后重置')
+    expect(resetsIn('2026-10-05T21:46:00Z', now)).toBe('3天4小时后重置')
+    expect(resetsIn('2026-10-02T17:50:00Z', now)).toBe('4分钟后重置')
+    expect(resetsIn('2026-10-02T17:00:00Z', now)).toBe('即将重置')
     expect(resetsIn('', now)).toBe('')
   })
 
@@ -87,10 +88,50 @@ describe('burn math', () => {
     m = tallyTurn(m, turn('claude-opus-5-5', 3000))
     m = tallyTurn(m, turn('claude-haiku-4-5-20251001', 500))
     expect(m['claude-opus-5-5']).toEqual({ input: 102_000, output: 5000, turns: 2 })
-    expect(modelName('claude-opus-5-5')).toBe('opus 5.5')
-    expect(modelName('claude-haiku-4-5-20251001')).toBe('haiku 4.5')
+    expect(modelName('claude-opus-5-5')).toBe('Opus 5.5')
+    expect(modelName('claude-opus-5-5[1m]')).toBe('Opus 5.5')
+    expect(modelName('claude-haiku-4-5-20251001')).toBe('Haiku 4.5')
     expect(modelName('gpt-x')).toBe('gpt-x')
-    expect(modelsLine(m)).toBe('opus 5.5 102k in 5k out · haiku 4.5 51k in 500 out')
+    expect(modelsLine(m)).toBe('Opus 5.5 输入 102k 输出 5k · Haiku 4.5 输入 51k 输出 500')
     expect(tokenCount(1_200_000)).toBe('1.2M')
+  })
+
+  test('the status line figures read the way the status line shows them', async () => {
+    expect(tokensShort(86_400)).toBe('86.4k')
+    expect(tokensShort(1_000_000)).toBe('1M')
+    expect(tokensShort(200_000)).toBe('200k')
+    expect(tokensShort(842)).toBe('842')
+    expect(contextLine(86_400, 1_000_000)).toBe('8.6% · 86.4k / 1M')
+    expect(contextLine(undefined, 200_000)).toBe('-- / 200k')
+    expect(elapsed(19 * 60_000 + 32_000)).toBe('19分32秒')
+    expect(elapsed(65 * 60_000)).toBe('1小时5分')
+    expect(folderName('D:\\github\\claude-code-mods')).toBe('claude-code-mods')
+    expect(folderName('/home/me/repo/')).toBe('repo')
+    expect(styleName(undefined)).toBe('默认')
+    expect(styleName('default')).toBe('默认')
+    expect(styleName('Explanatory')).toBe('Explanatory')
+  })
+
+  test('git status names the branch and counts changed paths', async () => {
+    const clean = '# branch.oid abc\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n'
+    expect(parseGitStatus(clean)).toEqual({ branch: 'main', dirty: 0 })
+    const dirty = clean + '1 .M N... 100644 100644 100644 a b hooks/burn.ts\n? notes.txt\n'
+    expect(parseGitStatus(dirty)).toEqual({ branch: 'main', dirty: 2 })
+    expect(parseGitStatus('# branch.oid abc\r\n# branch.head (detached)\r\n').branch).toBe('游离 HEAD')
+    expect(gitLabel('main', 0)).toBe('main ✓')
+    expect(gitLabel('main', 3)).toBe('main ●3')
+    expect(gitLabel('', 0)).toBe('')
+  })
+
+  test('lines added and removed come from the structured patch', async () => {
+    const patch = [
+      { lines: [' keep', '-old one', '-old two', '+new one'] },
+      { lines: ['+added', ' keep'] },
+    ]
+    expect(patchLines(patch)).toEqual({ added: 2, removed: 2 })
+    expect(patchLines([])).toEqual({ added: 0, removed: 0 })
+    expect(lineCount('a\nb\nc\n')).toBe(3)
+    expect(lineCount('a\nb')).toBe(2)
+    expect(lineCount('')).toBe(0)
   })
 })
