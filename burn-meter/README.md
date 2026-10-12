@@ -4,7 +4,7 @@ Live session cost odometer above the prompt: a burning fuse, threshold alerts, a
 
 ![burn-meter](../screenshots/burn-meter.png)
 
-A band above the prompt. Its top row carries the status line's figures: model, folder, git branch, context use, session time, lines changed and output style. Below it, once the session has spent something, a growing fire bar for session spend, 5-hour and weekly plan-limit bars with reset times, and token use by model. `/burn` opens the full panel with the same figures and per-turn cost. Alerts fire when you cross a threshold. Every label is in Chinese.
+A three-row band above the prompt. The first row carries the status line's figures: model, folder, git branch and lines changed. The second meters the context window, then the session's spend with a sparkline of recent turns, tokens in and out, and session time. The third meters the 5-hour plan limit with its reset, the weekly one, and your lifetime spend. `/burn` opens the full panel with a big fire bar, the same figures, the output style and per-turn cost. Alerts fire when you cross a threshold. Every label is in Chinese.
 
 (The screenshot shows the original English version.)
 

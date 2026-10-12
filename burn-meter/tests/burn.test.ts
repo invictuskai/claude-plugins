@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { FIRE_ROWS, barText, bracket, burnt, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tokenCount, tokensShort, tween, windows } from '../hooks/burn'
+import { FIRE_ROWS, barText, blocks, bracket, burnt, clockTime, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, resetsShort, spark, styleName, tallyTurn, tokenCount, tokenTotals, tokensShort, tween, windows } from '../hooks/burn'
 
 describe('burn math', () => {
   test('money formats cents and fractions of a cent', async () => {
@@ -128,5 +128,26 @@ describe('burn math', () => {
     expect(lineCount('a\nb\nc\n')).toBe(3)
     expect(lineCount('a\nb')).toBe(2)
     expect(lineCount('')).toBe(0)
+  })
+
+  test('the band draws compact meters, sparks and times', async () => {
+    expect(blocks(0.086)).toBe('▰▱▱▱▱▱▱▱▱▱')
+    expect(blocks(0.32)).toBe('▰▰▰▱▱▱▱▱▱▱')
+    expect(blocks(0)).toBe('▱▱▱▱▱▱▱▱▱▱')
+    expect(blocks(1.4)).toBe('▰▰▰▰▰▰▰▰▰▰')
+    expect(spark([0.1, 0.2, 0.4, 0.7, 1])).toBe('▂▂▄▆█')
+    expect(spark([])).toBe('')
+    expect(spark([0, 0])).toBe('▁▁')
+    expect(spark([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 8).length).toBe(8)
+    expect(clockTime(19 * 60_000 + 32_000)).toBe('19:32')
+    expect(clockTime(3_909_000)).toBe('1:05:09')
+    const now = Date.parse('2026-10-02T17:46:00Z')
+    expect(resetsShort('2026-10-02T20:00:00Z', now)).toBe('2h14m')
+    expect(resetsShort('2026-10-05T21:46:00Z', now)).toBe('3d4h')
+    expect(resetsShort('2026-10-02T17:00:00Z', now)).toBe('0m')
+    expect(resetsShort('', now)).toBe('')
+    const m = { a: { input: 1_000_000, output: 80_000, turns: 3 }, b: { input: 200_000, output: 4_000, turns: 1 } }
+    expect(tokenTotals(m)).toEqual({ input: 1_200_000, output: 84_000 })
+    expect(tokenCount(86_400)).toBe('86k')
   })
 })

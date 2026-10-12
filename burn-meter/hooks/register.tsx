@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Burn, ModelTally, Status } from '../types'
-import { FIRE_ROWS, barText, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tween, windows } from './burn'
+import { barText, blocks, clockTime, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, resetsShort, spark, styleName, tallyTurn, tokenCount, tokenTotals, tokensShort, tween, windows } from './burn'
 
 const burn = atom({ plugin: 'burn-meter', key: 'burn' } as const, {
   shown: 0,
@@ -39,9 +39,6 @@ const DEMO_TOP = 30.5
 const DEMO_HOLD_MS = 6_000
 
 let tweenTimer: { cancel: () => void } | null = null
-let sparkTimer: { cancel: () => void } | null = null
-let sparkSize = 0
-let bandId: string | null = null
 let demoStartedAt = 0
 let demoFired: number[] = []
 let paneTimer: { cancel: () => void } | null = null
@@ -52,6 +49,8 @@ const PANE_FIRE_ROWS = 8
 const TURNS_KEPT = 12
 /** The pane's label column: four Chinese characters and a gap. */
 const LABEL_COLUMNS = 10
+/** The band's right-aligned column: tokens and session time, then the lifetime total. */
+const RIGHT_COLUMNS = 22
 
 /** Animates the pane's tall fire while the pane is mounted; stops once a blit is refused. */
 const startPaneFire = ($: EngineInterface, columns: number) => {
@@ -147,31 +146,6 @@ const startTween = ($: EngineInterface) => {
 /** The bar's fill: the 5-hour window on a subscription, else the spend's heat. */
 const fill = (b: Burn) => (b.isDemo || b.session < 0 ? heat(b.shown) : Math.max(0.02, Math.min(1, b.session / 100)))
 
-/** Animates the fire by blitting the bar while the band is mounted. */
-const startSpark = ($: EngineInterface, columns: number) => {
-  if (sparkTimer && sparkSize === columns) return
-  sparkTimer?.cancel()
-  sparkSize = columns
-  const timer = $.clock.every(80, () => {
-    if (!bandId) return
-    void Promise.all([read($, burn), $.clock.now()]).then(([b, now]) =>
-      $.ui
-        .blit({
-          requestId: bandId!,
-          key: 'fire',
-          cells: fireCells(columns, fill(b), fill(b), now / 1000),
-        })
-        .then(r => {
-          if (r.deny && sparkTimer === timer) {
-            timer.cancel()
-            sparkTimer = null
-          }
-        }),
-    )
-  })
-  sparkTimer = timer
-}
-
 /** Refreshes the branch, its changed paths and the output style; the tool hooks tally the lines. */
 const readStatus = async ($: EngineInterface) => {
   const ran = await $.process
@@ -206,8 +180,11 @@ const readInfo = async ($: EngineInterface) => {
     git: gitLabel(s.branch, s.dirty),
     dirty: s.dirty,
     context: contextLine(tokens, window),
+    contextTokens: tokens,
+    contextWindow: window,
     contextPct: tokens === undefined || window <= 0 ? 0 : (tokens / window) * 100,
     duration: elapsed(now - usage.startedAt),
+    clock: clockTime(now - usage.startedAt),
     added: s.added,
     removed: s.removed,
     style: s.style,
@@ -329,72 +306,88 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
-    const b = await read($, burn)
-    const info = await readInfo($)
-    // Before the first response there is no spend to burn: the status row stands alone.
-    const hasBurn = b.target > 0 || b.session >= 0 || b.isDemo
+    const [b, info, history, used] = await Promise.all([read($, burn), readInfo($), read($, turns), read($, models)])
 
-    const elements = $.ui.resolve(e)
-    const { Box, Text, Button } = elements
-    const Raster = 'Raster' in elements ? elements.Raster : null
-    const hasFire = hasBurn && Raster !== null && e.surface === 'terminal'
-    const now = await $.clock.now()
-    const cols = Math.max(40, e.props.bodyColumns || 80)
+    const { Box, Text } = $.ui.resolve(e)
+    const now = Date.now()
     const level = fill(b)
     const color = level > 0.75 ? RED : level > 0.45 ? ORANGE : GOLD
     const isRolling = b.shown !== b.target
-    // The Chinese labels on either side are double-width: the bar takes what they leave.
-    const bar = Math.max(12, Math.min(64, cols - 70))
-    const used = modelsLine(await read($, models), cols >= 160 ? 2 : 1, info.model)
-    const sessionLine = [`5小时 ${pct(b.session)}`, resetsIn(b.sessionResets, Date.now())].filter(Boolean).join(' · ')
-    const weekLine = [`本周 ${pct(b.week)}`, resetsIn(b.weekResets, Date.now())].filter(Boolean).join(' · ')
-
-    if (hasFire) {
-      bandId = e.requestId
-      startSpark($, bar)
-    }
-
-    const statusRow = [
-      <Text key="model" color={BLUE} bold>{`🤖 ${info.model}`}</Text>,
-      <Text key="folder">{`📁 ${info.folder}`}</Text>,
-      info.git ? <Text key="git" color={info.dirty > 0 ? ORANGE : GREEN}>{`🌿 ${info.git}`}</Text> : null,
-      <Text key="context" color={contextColor(info)}>{`⚡ 上下文 ${info.context}`}</Text>,
-      <Text key="time">{`⏱ 用时 ${info.duration}`}</Text>,
-      <Text key="lines">
-        <Text color={GREEN}>{`+${info.added}`}</Text>
-        <Text>{' '}</Text>
-        <Text color={RED}>{`-${info.removed}`}</Text>
-      </Text>,
-      <Text key="style" dimColor>{`🎯 风格 ${info.style}`}</Text>,
-    ]
-      .filter(x => x !== null)
-      .flatMap((x, i) => (i === 0 ? [x] : [<Text key={`sep-${i}`} dimColor>│</Text>, x]))
+    const tokens = tokenTotals(used)
+    const hasContext = info.contextTokens !== undefined
+    const contextSize = `${hasContext ? tokenCount(info.contextTokens!) : '--'}/${tokensShort(info.contextWindow)}`
+    const sessionReset = resetsShort(b.sessionResets, now)
+    const weekReset = resetsShort(b.weekResets, now)
+    // Fixed widths line the two meter rows up; a Chinese character takes two cells.
+    const cell = (key: string, width: number, child: RenderChildren) => (
+      <Box key={key} width={width}>
+        {child}
+      </Box>
+    )
+    const right = (key: string, child: RenderChildren) => (
+      <Box key={key} width={RIGHT_COLUMNS} justifyContent="flex-end">
+        {child}
+      </Box>
+    )
 
     return (
-      <Box flexDirection="column">
-        <Box gap={1} flexWrap="wrap">{statusRow}</Box>
-        {hasBurn && (
-          <Box gap={2} alignItems="flex-end">
-            <Box flexDirection="column">
-              <Text color={color} bold>{b.isDemo ? '演示' : '燃烧'}</Text>
-              <Text color={color} bold>{sessionLine}</Text>
-              <Text dimColor>{weekLine}</Text>
-            </Box>
-            {hasFire && Raster ? (
-              <Raster key="fire" columns={bar} rows={FIRE_ROWS} cells={fireCells(bar, level, level, now / 1000)} />
-            ) : (
-              <Text color={color}>{barText(bar, level)}</Text>
-            )}
-            <Box flexDirection="column">
-              <Text color={isRolling ? color : PAPER} bold>{money(b.shown)}</Text>
-              <Text dimColor>{used || '还没有模型回合'}</Text>
-              <Box gap={2}>
-                <Text dimColor>{`累计 ${money(b.lifetime)}`}</Text>
-                <Button key="hide" label="隐藏" plain onPress={() => void update($, isHidden, () => true)} />
-              </Box>
-            </Box>
-          </Box>
-        )}
+      <Box flexDirection="column" paddingLeft={1}>
+        <Text>
+          <Text color={BLUE} bold>{info.model}</Text>
+          <Text dimColor>{'  ·  '}</Text>
+          <Text>{info.folder}</Text>
+          {info.git ? <Text dimColor>{'  ·  '}</Text> : null}
+          {info.git ? <Text color={info.dirty > 0 ? ORANGE : GREEN}>{info.git}</Text> : null}
+          <Text color={GREEN}>{` +${info.added}`}</Text>
+          <Text color={RED}>{` −${info.removed}`}</Text>
+        </Text>
+        <Box>
+          {cell('label', 7, <Text dimColor>上下文</Text>)}
+          {cell('bar', 12, <Text color={contextColor(info) ?? GOLD}>{blocks(info.contextPct / 100)}</Text>)}
+          {cell(
+            'figure',
+            14,
+            <Text>
+              <Text>{hasContext ? `${info.contextPct.toFixed(1)}%` : '--'}</Text>
+              <Text dimColor>{`  ${contextSize}`}</Text>
+            </Text>,
+          )}
+          {cell(
+            'spend',
+            18,
+            <Text>
+              <Text color={isRolling ? color : PAPER} bold>{`${b.isDemo ? '演示 ' : ''}${money(b.shown)}`}</Text>
+              <Text color={GOLD}>{` ${spark(history)}`}</Text>
+            </Text>,
+          )}
+          {right('tokens', <Text dimColor>{`↑${tokenCount(tokens.input)} ↓${tokenCount(tokens.output)}   ⏱ ${info.clock}`}</Text>)}
+        </Box>
+        <Box>
+          {cell('label', 7, <Text dimColor>5小时</Text>)}
+          {cell(
+            'bar',
+            12,
+            b.session < 0 ? <Text dimColor>{blocks(0)}</Text> : <Text color={b.session > 75 ? RED : GOLD}>{blocks(b.session / 100)}</Text>,
+          )}
+          {cell(
+            'figure',
+            14,
+            <Text>
+              <Text>{pct(b.session)}</Text>
+              <Text dimColor>{sessionReset ? `   ↻ ${sessionReset}` : ' '}</Text>
+            </Text>,
+          )}
+          {cell(
+            'week',
+            18,
+            <Text>
+              <Text dimColor>{'本周 '}</Text>
+              <Text color={b.week > 75 ? RED : undefined}>{pct(b.week)}</Text>
+              <Text dimColor>{weekReset ? `  ↻ ${weekReset}` : ' '}</Text>
+            </Text>,
+          )}
+          {right('lifetime', <Text dimColor>{`累计 ${money(b.lifetime)}`}</Text>)}
+        </Box>
       </Box>
     )
   })

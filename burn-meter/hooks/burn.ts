@@ -74,8 +74,47 @@ export const resetsIn = (iso: string, now: number) => {
   return d > 0 ? `${d}天${h}小时后重置` : h > 0 ? `${h}小时${m % 60}分后重置` : `${m}分钟后重置`
 }
 
+/** `2h14m`, `3d4h`, `45m`, `0m` once due; '' when unknown. The band's compact form of `resetsIn`. */
+export const resetsShort = (iso: string, now: number) => {
+  if (!iso) return ''
+  const ms = Date.parse(iso) - now
+  if (!Number.isFinite(ms)) return ''
+  const m = Math.max(0, Math.floor(ms / 60_000))
+  const d = Math.floor(m / 1440)
+  const h = Math.floor((m % 1440) / 60)
+  return d > 0 ? `${d}d${h}h` : h > 0 ? `${h}h${m % 60}m` : `${m}m`
+}
+
 /** `42%`, or `--` with no reading. */
 export const pct = (n: number) => (n < 0 ? '--' : `${Math.round(n)}%`)
+
+/** `▰▰▰▱▱▱▱▱▱▱` for 0..1 over `width` cells. */
+export const blocks = (fraction: number, width = 10) => {
+  const filled = Math.max(0, Math.min(width, Math.round(fraction * width)))
+  return '▰'.repeat(filled) + '▱'.repeat(width - filled)
+}
+
+const SPARKS = '▁▂▃▄▅▆▇█'
+
+/** The last `width` values as `▁▂▃▅▇`, scaled to the largest; '' with none. */
+export const spark = (values: readonly number[], width = 8) => {
+  const recent = values.slice(-width)
+  const top = Math.max(0, ...recent)
+  return recent.map(v => SPARKS[top <= 0 ? 0 : Math.round((Math.max(0, v) / top) * (SPARKS.length - 1))]).join('')
+}
+
+/** Input and output tokens summed over every model the session used. */
+export const tokenTotals = (models: Readonly<Record<string, Tally>>) =>
+  Object.values(models).reduce((sum, t) => ({ input: sum.input + t.input, output: sum.output + t.output }), { input: 0, output: 0 })
+
+/** `19:32` under an hour, `1:05:09` past it. */
+export const clockTime = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(s / 3600)
+  const mm = Math.floor((s % 3600) / 60)
+  const ss = String(s % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`
+}
 
 // --- the status line's figures -------------------------------------------
 
