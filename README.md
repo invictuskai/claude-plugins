@@ -1,40 +1,28 @@
 # claude-plugins
 
-我的 Claude Code 插件（mod）合集。
+我的 Claude Code 插件合集。
 
 | 插件 | 命令 | 说明 |
 | --- | --- | --- |
-| [burn-meter](burn-meter/) | `/burn` | 输入框上方的会话仪表：状态栏信息（模型、目录、分支、上下文、用时、增删行数、输出风格）、火焰花费条、5 小时/每周额度、超额提醒。中文界面，Ayu Dark 配色 |
 | [oceanus-themes](oceanus-themes/) | `/theme` | 配色主题：Ayu Dark（来自 ccthemes），ID `custom:oceanus-themes:ayu-dark` |
 
 ## 安装
 
 需要 Claude Code 2.1.287 或更高版本。
 
-通过插件市场（推送到 GitHub 之后）：
-
 ```
 /plugin marketplace add invictuskai/claude-plugins
-/plugin install burn-meter@oceanus-plugins
+/plugin install oceanus-themes@oceanus-plugins
 ```
 
-本地加载单次会话：
-
-```bash
-claude --plugin-dir D:/github/claude-plugins/burn-meter
-```
-
-每次会话都加载：在 `~/.claude/settings.json` 的 `env` 里设置 `CLAUDE_CODE_PLUGIN_DIRS`。
+然后在 `/theme` 里选 Ayu Dark，或在 `settings.json` 里设置 `"theme": "custom:oceanus-themes:ayu-dark"`。
 
 ## 开发
 
 ```bash
-claude plugin validate ./burn-meter
-claude plugin test ./burn-meter
+claude plugin validate ./oceanus-themes
 ```
 
 ## 来源
-
-burn-meter 来自 [OneWave-AI/claude-code-mods](https://github.com/OneWave-AI/claude-code-mods)（commit `e6da26c`），MIT 许可。本仓库在其基础上修改。
 
 Ayu Dark 主题来自 [livlign/ccthemes](https://github.com/livlign/ccthemes)（commit `a4f7528`），MIT 许可。
