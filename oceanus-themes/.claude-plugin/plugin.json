@@ -1,0 +1,8 @@
+{
+  "name": "oceanus-themes",
+  "version": "0.1.0",
+  "description": "Color themes for the /theme picker: Ayu Dark, from the ccthemes gallery",
+  "author": { "name": "makai01" },
+  "license": "MIT",
+  "keywords": ["theme", "themes", "color-scheme", "dark-theme"]
+}

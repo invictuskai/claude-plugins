@@ -9,6 +9,11 @@
       "name": "burn-meter",
       "source": "./burn-meter",
       "description": "Live session cost odometer above the prompt: a burning fuse, real-world comparisons, threshold alerts (Ayu Dark palette)"
+    },
+    {
+      "name": "oceanus-themes",
+      "source": "./oceanus-themes",
+      "description": "Color themes for the /theme picker: Ayu Dark, from the ccthemes gallery"
     }
   ]
 }

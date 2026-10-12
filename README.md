@@ -5,6 +5,7 @@
 | 插件 | 命令 | 说明 |
 | --- | --- | --- |
 | [burn-meter](burn-meter/) | `/burn` | 输入框上方的会话花费仪表：火焰进度条、5 小时/每周额度、超额提醒。配色改为 Ayu Dark |
+| [oceanus-themes](oceanus-themes/) | `/theme` | 配色主题：Ayu Dark（来自 ccthemes），ID `custom:oceanus-themes:ayu-dark` |
 
 ## 安装
 
@@ -35,3 +36,5 @@ claude plugin test ./burn-meter
 ## 来源
 
 burn-meter 来自 [OneWave-AI/claude-code-mods](https://github.com/OneWave-AI/claude-code-mods)（commit `e6da26c`），MIT 许可。本仓库在其基础上修改。
+
+Ayu Dark 主题来自 [livlign/ccthemes](https://github.com/livlign/ccthemes)（commit `a4f7528`），MIT 许可。
