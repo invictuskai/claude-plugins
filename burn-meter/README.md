@@ -24,7 +24,7 @@ In a Claude Code session (2.1.287 or later):
 
 ```
 /plugin marketplace add <github-user>/claude-plugins
-/plugin install burn-meter@makai01-plugins
+/plugin install burn-meter@oceanus-plugins
 ```
 
 Or load this folder for one session: `claude --plugin-dir ./burn-meter`

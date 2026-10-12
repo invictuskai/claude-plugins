@@ -14,7 +14,7 @@
 
 ```
 /plugin marketplace add <github-user>/claude-plugins
-/plugin install burn-meter@makai01-plugins
+/plugin install burn-meter@oceanus-plugins
 ```
 
 本地加载单次会话：
