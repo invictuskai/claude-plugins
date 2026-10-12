@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Burn, ModelTally, Status } from '../types'
-import { FIRE_ROWS, THINGS, barText, compare, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tween, windows } from './burn'
+import { FIRE_ROWS, barText, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tween, windows } from './burn'
 
 const burn = atom({ plugin: 'burn-meter', key: 'burn' } as const, {
   shown: 0,
@@ -123,7 +123,7 @@ const alarm = async ($: EngineInterface, from: number, to: number, isDemo: boole
   const hits = crossed(from, to, already)
   if (hits.length === 0) return
   const top = hits[hits.length - 1]!
-  $.ui.toast(`本次会话已烧掉 ${money(top)}，${compare(top, top)}`, { timeoutMs: 6000 })
+  $.ui.toast(`本次会话已烧掉 ${money(top)}`, { timeoutMs: 6000 })
   if (isDemo) demoFired = [...demoFired, ...hits]
   else await update($, fired, list => [...list, ...hits])
 }
@@ -253,7 +253,7 @@ export const register: Register = on => {
     $.clock.every(1000, () => void readCost($).catch(() => undefined))
     // Commits and edits made outside a turn still reach the branch label.
     $.clock.every(30_000, () => void readStatus($).catch(() => undefined))
-    // The session clock ticks every second; the comparison rotates every six.
+    // The session clock in the status row ticks every second.
     $.clock.every(1000, () => $.ui.invalidate('ui.render'))
 
     return next(e)
@@ -311,7 +311,7 @@ export const register: Register = on => {
     }
     const b = await read($, burn)
     if (arg === 'lifetime') {
-      return { text: `累计花费：${money(b.lifetime)}，${compare(b.lifetime, 2)}。` }
+      return { text: `累计花费：${money(b.lifetime)}。` }
     }
     await update($, isHidden, () => false)
     if (arg === '' || arg === 'panel') void openPane($)
@@ -321,7 +321,7 @@ export const register: Register = on => {
     const session = [info.model, info.folder, info.git, `上下文 ${info.context}`, `用时 ${info.duration}`, `+${info.added} -${info.removed}`, `风格 ${info.style}`]
     return {
       text:
-        `本次会话：${money(b.target)}，${compare(b.target, 0)}。${limits}。累计：${money(b.lifetime)}。` +
+        `本次会话：${money(b.target)}。${limits}。累计：${money(b.lifetime)}。` +
         `\n${session.filter(Boolean).join(' · ')}` +
         (used ? `\n模型用量：${used}` : ''),
     }
@@ -345,8 +345,7 @@ export const register: Register = on => {
     const isRolling = b.shown !== b.target
     // The Chinese labels on either side are double-width: the bar takes what they leave.
     const bar = Math.max(12, Math.min(64, cols - 70))
-    const used = modelsLine(await read($, models), cols >= 160 ? 2 : 1)
-    const which = Math.floor(now / 6000) % THINGS.length
+    const used = modelsLine(await read($, models), cols >= 160 ? 2 : 1, info.model)
     const sessionLine = [`5小时 ${pct(b.session)}`, resetsIn(b.sessionResets, Date.now())].filter(Boolean).join(' · ')
     const weekLine = [`本周 ${pct(b.week)}`, resetsIn(b.weekResets, Date.now())].filter(Boolean).join(' · ')
 
@@ -387,10 +386,7 @@ export const register: Register = on => {
               <Text color={color}>{barText(bar, level)}</Text>
             )}
             <Box flexDirection="column">
-              <Text>
-                <Text color={isRolling ? color : PAPER} bold>{money(b.shown)}</Text>
-                <Text color={GOLD}>{` ${compare(b.shown, which)}`}</Text>
-              </Text>
+              <Text color={isRolling ? color : PAPER} bold>{money(b.shown)}</Text>
               <Text dimColor>{used || '还没有模型回合'}</Text>
               <Box gap={2}>
                 <Text dimColor>{`累计 ${money(b.lifetime)}`}</Text>
@@ -439,10 +435,7 @@ export const register: Register = on => {
           <Text color={color} bold>{b.isDemo ? '演示' : '本次会话花费'}</Text>
           <Text dimColor>{`累计 ${money(b.lifetime)}`}</Text>
         </Box>
-        <Text>
-          <Text color={isRolling ? color : PAPER} bold>{money(b.shown)}</Text>
-          <Text color={GOLD}>{`  ${compare(b.shown, Math.floor(now / 6000) % THINGS.length)}`}</Text>
-        </Text>
+        <Text color={isRolling ? color : PAPER} bold>{money(b.shown)}</Text>
         <Box marginY={1}>
           {hasFire ? (
             <Raster key="bigfire" columns={width} rows={PANE_FIRE_ROWS} cells={fireCells(width, level, level, now / 1000, PANE_FIRE_ROWS)} />
@@ -510,7 +503,7 @@ export const register: Register = on => {
           </Box>
         )}
 
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column">
           <Text bold color={PAPER}>每轮花费</Text>
           {history.length === 0 && <Text dimColor>还没有完成的回合。</Text>}
           {history.map((usd, i) => (
@@ -519,13 +512,6 @@ export const register: Register = on => {
               <Text color={usd === top && history.length > 1 ? ORANGE : GOLD}>{barText(turnBar, usd / top)}</Text>
               <Text>{` ${money(usd)}`}</Text>
             </Text>
-          ))}
-        </Box>
-
-        <Box flexDirection="column">
-          <Text bold color={PAPER}>相当于</Text>
-          {THINGS.map((_, i) => (
-            <Text key={`thing-${i}`} color={GOLD}>{compare(b.shown, i)}</Text>
           ))}
         </Box>
       </Box>

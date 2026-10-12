@@ -1,19 +1,12 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { FIRE_ROWS, barText, bracket, burnt, compare, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tokenCount, tokensShort, tween, windows } from '../hooks/burn'
+import { FIRE_ROWS, barText, bracket, burnt, contextLine, crossed, elapsed, fireCells, folderName, gitLabel, heat, lifetimeDelta, lineCount, modelName, modelsLine, money, parseGitStatus, patchLines, pct, resetsIn, styleName, tallyTurn, tokenCount, tokensShort, tween, windows } from '../hooks/burn'
 
 describe('burn math', () => {
   test('money formats cents and fractions of a cent', async () => {
     expect(money(0)).toBe('$0.00')
     expect(money(12.345)).toBe('$12.35')
     expect(money(0.0042)).toBe('$0.0042')
-  })
-
-  test('comparisons pick a thing and count it in Chinese', async () => {
-    expect(compare(22, 0)).toBe('≈ 2.0 个墨西哥卷饼')
-    expect(compare(3.19, 1)).toBe('≈ 1.0 个麦当劳汉堡')
-    expect(compare(31.9, 1)).toBe('≈ 10 个麦当劳汉堡')
-    expect(compare(11, 2)).toBe('≈ 1.0 个墨西哥卷饼')
   })
 
   test('thresholds fire once each, in order', async () => {
@@ -93,6 +86,8 @@ describe('burn math', () => {
     expect(modelName('claude-haiku-4-5-20251001')).toBe('Haiku 4.5')
     expect(modelName('gpt-x')).toBe('gpt-x')
     expect(modelsLine(m)).toBe('Opus 5.5 输入 102k 输出 5k · Haiku 4.5 输入 51k 输出 500')
+    expect(modelsLine(m, 3, 'claude-opus-5-5[1m]')).toBe('输入 102k 输出 5k · Haiku 4.5 输入 51k 输出 500')
+    expect(modelsLine(m, 3, 'Opus 5.5')).toBe('输入 102k 输出 5k · Haiku 4.5 输入 51k 输出 500')
     expect(tokenCount(1_200_000)).toBe('1.2M')
   })
 

@@ -1,26 +1,10 @@
-/** Pure helpers for the burn meter: money formatting, comparisons, thresholds and the fuse frame. */
+/** Pure helpers for the burn meter: money formatting, thresholds, the status line's figures and the fuse frame. */
 
 export const THRESHOLDS = [1, 5, 10, 25, 50] as const
-
-/** A thing to price the spend in: its measure word and name, so `1.4 个墨西哥卷饼`. */
-type Thing = { name: string; usd: number }
-
-export const THINGS: readonly Thing[] = [
-  { name: '个墨西哥卷饼', usd: 11 },
-  { name: '个麦当劳汉堡', usd: 3.19 },
-]
 
 /** Dollars with two decimals (12.34), or four under a cent so the first fractions still move. */
 export const money = (usd: number) =>
   '$' + (usd > 0 && usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2))
-
-/** `≈ 1.4 个墨西哥卷饼` for the thing at `index`, wrapping. */
-export const compare = (usd: number, index: number) => {
-  const thing = THINGS[((index % THINGS.length) + THINGS.length) % THINGS.length]!
-  const count = usd / thing.usd
-  const shown = count >= 10 ? count.toFixed(0) : count >= 1 ? count.toFixed(1) : count.toFixed(2)
-  return `≈ ${shown} ${thing.name}`
-}
 
 /** `842`, `84k`, `1.2M`. */
 export const tokenCount = (n: number) =>
@@ -48,12 +32,19 @@ export const modelName = (id: string) => {
   return m ? `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id
 }
 
-/** `Opus 5.5 输入 1.2M 输出 84k · Haiku 4.5 ...`, busiest first; '' when none. */
-export const modelsLine = (models: Readonly<Record<string, Tally>>, max = 3) =>
+/**
+ * `输入 1.2M 输出 84k · Haiku 4.5 输入 51k 输出 500`, busiest first; '' when none.
+ * The `current` model goes unnamed: the band's status row already names it.
+ */
+export const modelsLine = (models: Readonly<Record<string, Tally>>, max = 3, current = '') =>
   Object.entries(models)
     .sort((a, b) => b[1].output - a[1].output)
     .slice(0, max)
-    .map(([id, t]) => `${modelName(id)} 输入 ${tokenCount(t.input)} 输出 ${tokenCount(t.output)}`)
+    .map(([id, t]) => {
+      const name = modelName(id)
+      const usage = `输入 ${tokenCount(t.input)} 输出 ${tokenCount(t.output)}`
+      return current && name === modelName(current) ? usage : `${name} ${usage}`
+    })
     .join(' · ')
 
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
